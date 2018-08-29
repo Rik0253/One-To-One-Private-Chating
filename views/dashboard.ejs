@@ -1,0 +1,710 @@
+<!doctype html>
+<html>
+    <head>
+        <title>One-To-One Chat Application</title>  
+           <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.4/socket.io.js"></script>
+        <script src="socket.io-file-client.js"></script>
+        
+         <link rel="stylesheet" href="css/chat.css"> 
+         <link rel="stylesheet" href="dist/css/sprites/emojify.min.css" />  
+         
+
+          <style>
+
+
+          .emojiPicker {
+   /* display: none;*/
+    position: absolute;
+    outline: none;
+    border: none;
+    box-shadow: 0 0 7px #555;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+.emojiPicker nav div.tab.active {
+    background-color: #fff;
+    box-shadow: 0 0 3px #ccc;
+}
+.emojiPicker nav div.tab {
+    display: inline-block;
+    margin: 2% 1% 0 1%;
+    padding: 2% 2% 1% 2%;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    cursor: pointer;
+}
+.emojiPicker section {
+    overflow-y: scroll;
+    position: relative;
+    z-index: 10;
+    background: #fff;
+}
+.emojiPicker .hidden {
+    display: none;
+}
+.emojiPicker .emoji{
+    cursor: pointer;
+}
+.popover-body{
+    /*font-size: 13px;
+    margin-top: 100px;*/
+    width: 250px;
+    height: 250px ;
+}
+.popover-body nav {
+    position: relative;
+    z-index: 0;
+    background-color: #f2f2f2;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+.popover-body nav div.tab.active {
+    background-color: #fff;
+    box-shadow: 0 0 3px #ccc;
+}
+.popover-body nav div.tab {
+    display: inline-block;
+    margin: 2% 1% 0 1%;
+    padding: 2% 2% 1% 2%;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    cursor: pointer;
+}
+.popover-body section {
+    overflow-y: scroll;
+    position: relative;
+    z-index: 10;
+    background: #fff;
+}
+.popover-body .hidden {
+    display: none;
+}
+.popover-body .emoji{
+    cursor: pointer;
+}
+
+}
+          </style> 
+          <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+
+        <script>
+            //this function can remove a array element.
+            Array.remove = function(array, from, to) {
+                var rest = array.slice((to || from) + 1 || array.length);
+                array.length = from < 0 ? array.length + from : from;
+                return array.push.apply(array, rest);
+            };
+
+            //this variable represents the total number of popups can be displayed according to the viewport width
+            var total_popups = 0;
+            
+            //arrays of popups ids
+            var popups = [];
+
+           // var user_popups=[];
+        
+            //this is used to close a popup
+            function close_popup(id)
+            {
+                for(var iii = 0; iii < popups.length; iii++)
+                {
+                    if(id == popups[iii])
+                    {
+                        Array.remove(popups, iii);
+                        
+                        document.getElementById(id).remove();
+                        
+                        calculate_popups();
+                        
+                        return;
+                    }
+                } 
+
+              
+            }
+        
+            //displays the popups. Displays based on the maximum number of popups that can be displayed on the current viewport width
+            function display_popups()
+            {
+                var right = 220;
+                
+                var iii = 0;
+                for(iii; iii < total_popups; iii++)
+                {
+                    if(popups[iii] != undefined)
+                    {
+                        var element = document.getElementById(popups[iii]);
+                        element.style.right = right + "px";
+                        right = right + 320;
+                        element.style.display = "block";
+                    }
+                }
+                
+                for(var jjj = iii; jjj < popups.length; jjj++)
+                {
+                    var element = document.getElementById(popups[jjj]);
+                    element.style.display = "none";
+                }
+            }
+            
+            //creates markup for a new popup. Adds the id to popups array.
+            function register_popup(id, name,socket_id)
+            {
+                
+                for(var iii = 0; iii < popups.length; iii++)
+                {   
+                    //already registered. Bring it to front.
+                    if(id == popups[iii])
+                    {
+                        Array.remove(popups, iii);
+                    
+                        popups.unshift(id);
+                        
+                        calculate_popups();
+                        
+                        
+                        return;
+                    }
+                } 
+
+
+
+    // '<div class="modal fade" id="dialog_confirm_map" tabindex="-1" role="dialog" aria-labelledby="dialog_confirm_mapLabel" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-body"><p></p></div><div class="modal-footer"> <span style="float:left"><button type="button" class="btn btn-default" data-dismiss="modal">No, I </button></span><span style="float:right"></span></div></div></div></div>';
+
+              
+				
+				var element = '<div class="live-chat" id="'+ id +'"><header class="clearfix"><a href="javascript:close_popup(\''+ id +'\');" class="chat-close">x</a><h4>'+ name +'</h4><p id="'+id+'-typing"></p><span class="chat-message-counter">3</span>		</header><div class="chat"><div class="chat-history" id="'+id+'-chat-history"></div><div><p class="chat-feedback"></p><form id="'+id+'-form" onsubmit="return submitForm('+id+')" ><fieldset><input type="hidden" id="'+id+'-socketid" id="socketid" value="'+socket_id+'"> <div class="row"><div class="form-group col-xs-8"><div class="inner-addon left-addon"><i class="fa fa-smile-o emoji-popup-'+id+'" onclick="getEmoji('+id+');"></i><input class="form-control" type="text" onkeypress="typingFunction('+id+',\''+socket_id+'\')" placeholder="Type your message…" id="'+id+'-msg" autofocus autocomplete="off"></div></div><div class="form-group col-xs-2"><div class="fileUpload btn btn-primary"><span><i class="fa fa-paperclip"></i></span><input type="file" id="'+id+'-file" class="upload '+id+'-file-upload" accept="image/*,audio/*"  /></div></div><div class="form-group col-xs-2"><button class="form-post btn btn-defaiult btn-xs"><i class="fa fa-paper-plane"></i></button></div></div></fieldset></form></div>';
+				
+				
+                
+//                var element = '<div class="popup-box chat-popup" id="'+ id +'">';
+//                element = element + '<div class="popup-head">';
+//                element = element + '<div class="popup-head-left">'+ name +'</div>';
+//                element = element + '<div class="popup-head-right"><a href="javascript:close_popup(\''+ id +'\');">&#10005;</a></div>';
+//                element = element + '<div style="clear: both"></div></div><div class="popup-messages"></div></div>';
+                
+                document.getElementsByTagName("body")[0].innerHTML = document.getElementsByTagName("body")[0].innerHTML + element;  
+        
+                popups.unshift(id);
+
+                get_previous_data(id,socket_id);
+                        
+                calculate_popups();
+                
+            }
+            
+            //calculate the total number of popups suitable and then populate the toatal_popups variable.
+            function calculate_popups()
+            {
+                var width = window.innerWidth;
+                if(width < 540)
+                {
+                    total_popups = 0;
+                }
+                else
+                {
+                    width = width - 200;
+                    //320 is width of a single popup box
+                    total_popups = parseInt(width/320);
+                }
+                
+                display_popups();
+                
+            }
+            
+            //recalculate when window is loaded and also when window is resized.
+            window.addEventListener("resize", calculate_popups);
+            window.addEventListener("load", calculate_popups);
+
+
+            
+        </script>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+      <a class="navbar-brand" href="#">One To One Chat Application</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+        <ul class="navbar-nav mr-auto">
+         
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="dropdown01" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><%= users.user_name %></a>
+            <div class="dropdown-menu" aria-labelledby="dropdown01">
+              <a class="dropdown-item" href="/logout">Logout</a>
+              
+            </div>
+          </li>
+        </ul>
+        
+      </div>
+    </nav>
+       <main role="main" class="container">
+        <h1>One To One Chat Application</h1>
+        <h4><%= message+' '+users.user_name %></h4>
+        <br>
+        <br>
+        <div style="width: 600px;">
+        <p>This Chat Application Is Free To Use For People Who Wants To Implement Chat Application To (One-to-One) Private Chat.The Chat Is Fully Encrypted With RSA Algorithm.Here You can Send image,audio,text,emoji at present .Updates Will Be Comming Frequently.This Application is Build With NODE JS ,Express js ,Socket.io.</p>
+    </div>
+    </main>   
+
+            
+
+            
+
+
+
+             
+
+        <div class="chat-sidebar-header">
+            <h3>Online Users</h3>
+        </div>
+        <div class="chat-sidebar">
+            
+            
+        </div>
+        
+    </body>
+    
+  
+     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+     <script src="js/moment.js"></script>
+     <script src="js/jsencrypt.min.js"></script>
+     <script src="//cdnjs.cloudflare.com/ajax/libs/emojify.js/1.1.0/js/emojify.min.js"></script>
+     <script src="js/bootstrap-tooltip.js"></script>
+<scr<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+
+     
+    
+  
+<script>
+
+  
+    //function generateKeypair () {
+        //$(":file").filestyle({input: false});
+        emojify.setConfig({tag_type : 'span',mode: 'sprites'});
+  var crypt = new JSEncrypt({default_key_size: 2056});
+  var privateKey ;
+  var publicKey ;
+  var userpri=[];
+  var userp=[];
+
+
+
+  
+
+  function getEmoji(id)
+  {
+
+  
+  $('.emoji-popup-'+id).popover({
+    container: '#'+id+'-chat-history',
+    html:true,
+    content: '<nav><div class="tab '+id+'-tab active" id="emotion" data-tab="emotion" onclick="changeTab(\''+id+'\',this);"><i class="fa fa-smile-o fa-2x"></i></div><div class="tab '+id+'-tab" data-tab="animal" id="animal" onclick="changeTab(\''+id+'\',this);"><i class="fa fa-paw fa-2x"></i></div><div class="tab '+id+'-tab" data-tab="food" id="food" onclick="changeTab(\''+id+'\',this);"><i class="fa fa-cutlery"></i></div><div class="tab '+id+'-tab" data-tab="folderol" id="folderol" onclick="changeTab(\''+id+'\',this);"><i class="fa fa-arrows fa-2x"></i></div><div class="tab '+id+'-tab" data-tab="things" id="things" onclick="changeTab(\''+id+'\',this);"><i class="fa fa-cogs fa-2x"></i></div><div class="tab '+id+'-tab" data-tab="travel" id="travel" onclick="changeTab(\''+id+'\',this);"><i class="fa fa-plane fa-2x"></i></div></nav><div class="'+id+'section"><section class="'+id+'-emotion" id="'+id+'section" style="height: 180px;"><div class="emoji emoji-grin" id="'+id+'^grin" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-joy" id="'+id+'^joy" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-smiley" id="'+id+'^smiley" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sweat_smile" id="'+id+'^sweat_smile" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-laughing" id="'+id+'^laughing" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-innocent" id="'+id+'^innocent" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-smiling_imp" id="'+id+'^smiling_imp" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-blush" id="'+id+'^blush" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-yum" id="'+id+'^yum" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-relieved" id="'+id+'^relieved" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heart_eyes" id="'+id+'^heart_eyes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sunglasses" id="'+id+'^sunglasses" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-smirk" id="'+id+'^smirk" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-neutral_face" id="'+id+'^neutral_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-expressionless" id="'+id+'^expressionless" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-unamused" id="'+id+'^unamused" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sweat" id="'+id+'^sweat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pensive" id="'+id+'^pensive" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-confused" id="'+id+'^confused" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-confounded" id="'+id+'^confounded" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-kissing" id="'+id+'^kissing" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-kissing_heart" id="'+id+'^kissing_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-kissing_smiling_eyes" id="'+id+'^kissing_smiling_eyes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-kissing_closed_eyes" id="'+id+'^kissing_closed_eyes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-stuck_out_tongue" id="'+id+'^stuck_out_tongue" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-stuck_out_tongue_winking_eye" id="'+id+'^stuck_out_tongue_winking_eye" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-stuck_out_tongue_closed_eyes" id="'+id+'^stuck_out_tongue_closed_eyes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-disappointed" id="'+id+'^disappointed" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-worried" id="'+id+'^worried" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-angry" id="'+id+'^angry" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rage" id="'+id+'^rage" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cry" id="'+id+'^cry" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-persevere" id="'+id+'^persevere" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-triumph" id="'+id+'^triumph" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-disappointed_relieved" id="'+id+'^disappointed_relieved" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-frowning" id="'+id+'^frowning" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-anguished" id="'+id+'^anguished" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fearful" id="'+id+'^fearful" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-weary" id="'+id+'^weary" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sleepy" id="'+id+'^sleepy" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tired_face" id="'+id+'^tired_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-grimacing" id="'+id+'^grimacing" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sob" id="'+id+'^sob" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-open_mouth" id="'+id+'^open_mouth" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hushed" id="'+id+'^hushed" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cold_sweat" id="'+id+'^cold_sweat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-scream" id="'+id+'^scream" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-astonished" id="'+id+'^astonished" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flushed" id="'+id+'^flushed" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sleeping" id="'+id+'^sleeping" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dizzy_face" id="'+id+'^dizzy_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_mouth" id="'+id+'^no_mouth" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mask" id="'+id+'^mask" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-smile_cat" id="'+id+'^smile_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-joy_cat" id="'+id+'^joy_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-smiley_cat" id="'+id+'^smiley_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heart_eyes_cat" id="'+id+'^heart_eyes_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-smirk_cat" id="'+id+'^smirk_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-kissing_cat" id="'+id+'^kissing_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pouting_cat" id="'+id+'^pouting_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-crying_cat_face" id="'+id+'^crying_cat_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-scream_cat" id="'+id+'^scream_cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_good" id="'+id+'^no_good" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ok_woman" id="'+id+'^ok_woman" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bow" id="'+id+'^bow" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-see_no_evil" id="'+id+'^see_no_evil" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hear_no_evil" id="'+id+'^hear_no_evil" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-speak_no_evil" id="'+id+'^speak_no_evil" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-raising_hand" id="'+id+'^raising_hand" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-raised_hands" id="'+id+'^raised_hands" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-person_frowning" id="'+id+'^person_frowning" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-person_with_pouting_face" id="'+id+'^person_with_pouting_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pray" id="'+id+'^pray" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-point_up" id="'+id+'^point_up" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-relaxed" id="'+id+'^relaxed" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fist" id="'+id+'^fist" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hand" id="'+id+'^hand" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-snowboarder" id="'+id+'^snowboarder" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-runner" id="'+id+'runner" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-surfer" id="'+id+'^surfer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-trophy" id="'+id+'^trophy" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-horse_racing" id="'+id+'^horse_racing" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-football" id="'+id+'^football" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rugby_football" id="'+id+'^rugby_football" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-swimmer" id="'+id+'^swimmer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-feet" id="'+id+'^feet" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-eyes" id="'+id+'^eyes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ear" id="'+id+'^ear" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-nose" id="'+id+'^nose" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-lips" id="'+id+'^lips" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tongue" id="'+id+'^toung" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-point_up_2" id="'+id+'^point_up_2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-point_down" id="'+id+'^point_down" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-point_left" id="'+id+'^point_left" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-point_right" id="'+id+'^point_right" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-facepunch" id="'+id+'^facepunch" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wave" id="'+id+'^wave" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ok_hand" id="'+id+'^ok_hand" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-plus1" id="'+id+'^plus1" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji--1" id="'+id+'^1" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clap" id="'+id+'^clap" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-open_hands" id="'+id+'^open_hands" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-crown" id="'+id+'^crown" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-womans_hat" id="'+id+'^womans_hat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-eyeglasses" id="'+id+'^eyeglasses" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-necktie" id="'+id+'^necktie" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-shirt" id="'+id+'^shirt" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-jeans" id="'+id+'^jeans" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dress" id="'+id+'^dress" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-kimono" id="'+id+'^kimono" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bikini" id="'+id+'^bikini" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-womans_clothes" id="'+id+'^womans_clothes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-purse" id="'+id+'^purse" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-handbag" id="'+id+'^handbag" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pouch" id="'+id+'^pouch" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mans_shoe" id="'+id+'^mans_shoe" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-athletic_shoe" id="'+id+'^athletic_shoe" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-high_heel" id="'+id+'^high_heel" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sandal" id="'+id+'^sandal" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-boot" id="'+id+'^boot" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-footprints" id="'+id+'^footprints" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bust_in_silhouette" id="'+id+'^bust_in_silhouette" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-busts_in_silhouette" id="'+id+'^busts_in_silhouette" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-boy" id="'+id+'^boy" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-girl" id="'+id+'^girl" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-man" id="'+id+'^man" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-woman" id="'+id+'^woman" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-family" id="'+id+'^family" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-couple" id="'+id+'^couple" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-two_men_holding_hands" id="'+id+'^two_men_holding_hands" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-two_women_holding_hands" id="'+id+'^two_women_holding_hands" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cop" id="'+id+'^cop" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dancers" id="'+id+'^dancer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bride_with_veil" id="'+id+'^bride_with_veil" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-person_with_blond_hair" id="'+id+'^person_with_blond_hair" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-man_with_gua_pi_mao" id="'+id+'^man_with_gua_pi_mao" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-man_with_turban" id="'+id+'^man_with_turban" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-older_man" id="'+id+'^older_man" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-older_woman" id="'+id+'^older_woman" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-baby" id="'+id+'^baby" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-construction_worker" id="'+id+'^construction_worker" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-princess" id="'+id+'^princess" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-japanese_ogre" id="'+id+'^japanese_ogre" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-japanese_goblin" id="'+id+'^japanese_goblin" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ghost" id="'+id+'^ghost" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-angel" id="'+id+'^angle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-alien" id="'+id+'^alien" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-space_invader" id="'+id+'^space_invader" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-imp" id="'+id+'^imp" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-skull" id="'+id+'^skull" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-information_desk_person" id="'+id+'^information_desk_person" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-guardsman" id="'+id+'^guardsman" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dancer" id="'+id+'^dancer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-lipstick" id="'+id+'^lipstick" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-nail_care" id="'+id+'^nail_care" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-massage" id="'+id+'^massage" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-haircut" id="'+id+'^haircut" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-barber" id="'+id+'^barber" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-syringe" id="'+id+'^syringe" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pill" id="'+id+'^pill" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-kiss" id="'+id+'^kiss" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-love_letter" id="'+id+'^love_letter" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ring" id="'+id+'^ring" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-gem" id="'+id+'^gem" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-couplekiss" id="'+id+'^couplekiss" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bouquet" id="'+id+'^bouquet" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-couple_with_heart" id="'+id+'^couple_with_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wedding" id="'+id+'^wedding" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heartbeat" id="'+id+'^heartbeat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-broken_heart" id="'+id+'^broken_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-two_hearts" id="'+id+'^two_hearts" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sparkling_heart" id="'+id+'^sparkling_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heartpulse" id="'+id+'^heartpulse" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cupid" id="'+id+'^cupid" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-blue_heart" id="'+id+'^blue_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-green_heart" id="'+id+'^green_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-yellow_heart" id="'+id+'^yellow_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-purple_heart" id="'+id+'^purple_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-gift_heart" id="'+id+'^gift_heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-revolving_hearts" id="'+id+'^revolving_hearts" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heart_decoration" id="'+id+'^heart_decoration" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-diamond_shape_with_a_dot_inside" id="'+id+'^diamond_shape_with_a_dot_inside" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bulb" id="'+id+'^bulb" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-anger" id="'+id+'^anger" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bomb" id="'+id+'^bomb" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-zzz" id="'+id+'^zzz" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-boom" id="'+id+'^boom" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sweat_drops" id="'+id+'^sweat_drops" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-droplet" id="'+id+'^droplet" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dash" id="'+id+'^dash" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hankey" id="'+id+'^hankey" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-muscle" id="'+id+'^muscle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dizzy" id="'+id+'^dizzy" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-speech_balloon" id="'+id+'^speech_balloon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-thought_balloon" id="'+id+'^thought_balloon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_flower" id="'+id+'^white_flower" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-100" id="'+id+'^100" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-moneybag" id="'+id+'^moneybag" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-currency_exchange" id="'+id+'^currency_exchange" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heavy_dollar_sign" id="'+id+'^heavy_dollar_sign" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-credit_card" id="'+id+'^credit_card" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-yen" id="'+id+'^yen" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dollar" id="'+id+'^dollar" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-euro" id="'+id+'^euro" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pound" id="'+id+'^pound" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-money_with_wings" id="'+id+'^money_with_wings" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div></section><section class="'+id+'-animal hidden" id="'+id+'section" style="height: 180px;"><div class="emoji emoji-rat" id="'+id+'^rat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mouse2" id="'+id+'^mouse2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ox" id="'+id+'^ox" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-water_buffalo" id="'+id+'^water_buffalo" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cow2" id="'+id+'^cow2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tiger2" id="'+id+'^tiger2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-leopard" id="'+id+'^leopard" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rabbit2" id="'+id+'^rabbit2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cat2" id="'+id+'^cat2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dragon" id="'+id+'^dragon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-crocodile" id="'+id+'^crocodile" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-whale2" id="'+id+'^whale2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-snail" id="'+id+'^snail" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-snake" id="'+id+'^snake" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-racehorse" id="'+id+'^racehorse" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ram" id="'+id+'^ram" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-goat" id="'+id+'^goat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sheep" id="'+id+'^sheep" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-monkey" id="'+id+'^monkey" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rooster" id="'+id+'^rooster" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-chicken" id="'+id+'^chicken" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dog2" id="'+id+'^dog2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pig2" id="'+id+'^pig2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-boar" id="'+id+'^boar" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-elephant" id="'+id+'^elephant" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-octopus" id="'+id+'^octopus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-shell" id="'+id+'^shell" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bug" id="'+id+'^bug" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ant" id="'+id+'^ant" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bee" id="'+id+'^bee" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-beetle" id="'+id+'^beetle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fish" id="'+id+'^fish" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tropical_fish" id="'+id+'^tropical_fish" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-blowfish" id="'+id+'^blowfish" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-turtle" id="'+id+'^turtle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hatching_chick" id="'+id+'^hatched_chick" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-baby_chick" id="'+id+'^baby_chick" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hatched_chick" id="'+id+'^hatched_chick" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bird" id="'+id+'^bird" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-penguin" id="'+id+'^penguin" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-koala" id="'+id+'^koala" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-poodle" id="'+id+'^poodle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dromedary_camel" id="'+id+'^dromedary_camel" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-camel" id="'+id+'^camel" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dolphin" id="'+id+'^dolphin" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mouse" id="'+id+'^mouse" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cow" id="'+id+'^cow" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tiger" id="'+id+'^tiger" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rabbit" id="'+id+'^rabbit" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cat" id="'+id+'^cat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dragon_face" id="'+id+'^dragon_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-whale" id="'+id+'^whale" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-horse" id="'+id+'^horse" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-monkey_face" id="'+id+'^monkey_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dog" id="'+id+'^dog" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pig" id="'+id+'^pig" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-frog" id="'+id+'^frog" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hamster" id="'+id+'^hamster" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wolf" id="'+id+'^wolf" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bear" id="'+id+'^bear" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-panda_face" id="'+id+'^panda_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pig_nose" id="'+id+'^pig_nose" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div></section><section class="'+id+'-food hidden" id="'+id+'section" style="height: 180px;"><div class="emoji emoji-mushroom" id="'+id+'^mushroom" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tomato" id="'+id+'^tomato" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-eggplant" id="'+id+'^eggplant" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-grapes" id="'+id+'^grapes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-melon" id="'+id+'^melon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-watermelon" id="'+id+'^watermelon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tangerine" id="'+id+'^tangerine" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-lemon" id="'+id+'^lemon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-banana" id="'+id+'^banana" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pineapple" id="'+id+'^pineapple" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-apple" id="'+id+'^apple" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-green_apple" id="'+id+'^green_apple" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pear" id="'+id+'^pear" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-peach" id="'+id+'^peach" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cherries" id="'+id+'^cherries" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-strawberry" id="'+id+'^strawberry" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hamburger" id="'+id+'^hamburger" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pizza" id="'+id+'^pizza" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-meat_on_bone" id="'+id+'^meat_on_bone" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-poultry_leg" id="'+id+'^poultry_leg" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rice_cracker" id="'+id+'^rice_cracker" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rice_ball" id="'+id+'^rice_ball" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rice" id="'+id+'^rice" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-curry" id="'+id+'^curry" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ramen" id="'+id+'^ramen" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-spaghetti" id="'+id+'^spaghetti" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bread" id="'+id+'^bread" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fries" id="'+id+'^fries" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sweet_potato" id="'+id+'^sweet_potato" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dango" id="'+id+'^dango" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-oden" id="'+id+'^oden" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sushi" id="'+id+'^sushi" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fried_shrimp" id="'+id+'^fried_shrimp" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fish_cake" id="'+id+'^fish_cake" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-icecream" id="'+id+'^ice_cream" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-shaved_ice" id="'+id+'^shaved_ice" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ice_cream" id="'+id+'^ice_cream" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-doughnut" id="'+id+'^doughnut" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cookie" id="'+id+'^cookie" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-chocolate_bar" id="'+id+'^chocolate_bar" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-candy" id="'+id+'^candy" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-lollipop" id="'+id+'^lollipop" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-custard" id="'+id+'^custard" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-honey_pot" id="'+id+'^honey_pot" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cake" id="'+id+'^cake" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bento" id="'+id+'^bento" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-stew" id="'+id+'^stew" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-egg" id="'+id+'^egg" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fork_and_knife" id="'+id+'^fork_and_knife" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tea" id="'+id+'^tea" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sake" id="'+id+'^sake" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wine_glass" id="'+id+'^wine_glass" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cocktail" id="'+id+'^cocktail" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tropical_drink" id="'+id+'^tropical_drink" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-beer" id="'+id+'^beer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-beers" id="'+id+'^beers" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-baby_bottle" id="'+id+'^baby_bottle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div></section><section class="'+id+'-folderol hidden" id="'+id+'section" style="height: 180px;"><div class="emoji emoji-copyright" id="'+id+'^copyright" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-registered" id="'+id+'^registered" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-interrobang" id="'+id+'^interrobang" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tm" id="'+id+'^tm" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-information_source" id="'+id+'^information_source" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-left_right_arrow" id="'+id+'^left_right_arrow" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_up_down" id="'+id+'^arrow_up_down" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_upper_left" id="'+id+'^arrow_upper_left" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_upper_right" id="'+id+'^arrow_upper_right" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_lower_right" id="'+id+'^arrow_lower_right" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_lower_left" id="'+id+'^arrow_lower_left" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-leftwards_arrow_with_hook" id="'+id+'^leftwards_arrow_with_hook" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_right_hook" id="'+id+'^arrow_right_hook" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_double_up" id="'+id+'^arrow_double_up" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_double_down" id="'+id+'^arrow_double_down" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-m" id="'+id+'^m" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_small_square" id="'+id+'^black_small_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_small_square" id="'+id+'^white_small_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_forward" id="'+id+'^arrow_forward" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_backward" id="'+id+'^arrow_backward" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_medium_square" id="'+id+'^white_medium_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_medium_square" id="'+id+'^black_medium_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_medium_small_square" id="'+id+'^white_medium_small_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_medium_small_square" id="'+id+'^black_medium_small_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-aries" id="'+id+'^aries" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-taurus" id="'+id+'^taurus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-gemini" id="'+id+'^gemini" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cancer" id="'+id+'^cancer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-leo" id="'+id+'^leo" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-virgo" id="'+id+'^virgo" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-libra" id="'+id+'^libra" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-scorpius" id="'+id+'^scorpius onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sagittarius" id="'+id+'^sagittarius" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-capricorn" id="'+id+'^capricorn" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-aquarius" id="'+id+'^aquarius" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pisces" id="'+id+'^pisces" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-spades" id="'+id+'^spades" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clubs" id="'+id+'^clubs" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hearts" id="'+id+'^hearts" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-diamonds" id="'+id+'^diamonds" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-recycle" id="'+id+'^recycle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_circle" id="'+id+'^white_circle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_circle" id="'+id+'^black_circle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ophiuchus" id="'+id+'^ophiuchus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_entry" id="'+id+'^no_entry" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_check_mark" id="'+id+'^white_check_mark" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-v" id="'+id+'^v" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_nib" id="'+id+'^black_nib" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heavy_check_mark" id="'+id+'^heavy_check_mark" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heavy_multiplication_x" id="'+id+'^heavy_multiplication_x" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sparkles" id="'+id+'^sparkles" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-eight_spoked_asterisk" id="'+id+'^eight_spoked_asterisk" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-eight_pointed_black_star" id="'+id+'^eight_pointed_black_star" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-x" id="'+id+'^x" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-negative_squared_cross_mark" id="'+id+'^negative_squared_cross_mark" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-question" id="'+id+'^question" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-grey_question" id="'+id+'^grey_question" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-grey_exclamation" id="'+id+'^grey_exclamation" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-exclamation" id="'+id+'^exclamation" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heart" id="'+id+'^heart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heavy_plus_sign" id="'+id+'^heavy_plus_sign" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heavy_minus_sign" id="'+id+'^heavy_minus_sign" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-heavy_division_sign" id="'+id+'^heavy_division_sign" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_right" id="'+id+'^arrow_right" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-curly_loop" id="'+id+'^curly_loop" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-loop" id="'+id+'^loop" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_heading_up" id="'+id+'^arrow_heading_up" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_heading_down" id="'+id+'^arrow_heading_down" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_left" id="'+id+'^arrow_left" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_up" id="'+id+'^arrow_up" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_down" id="'+id+'^arrow_down" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_large_square" id="'+id+'^black_large_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_large_square" id="'+id+'^white_large_square" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-o" id="'+id+'^o" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wavy_dash" id="'+id+'^wavy_dash" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-part_alternation_mark" id="'+id+'^part_alternation_mark" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-congratulations" id="'+id+'^congratulations" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-secret" id="'+id+'^secret" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mahjong" id="'+id+'^mahjong" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_joker" id="'+id+'^black_joker" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-a" id="'+id+'^a" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-b" id="'+id+'^b" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-o2" id="'+id+'^o2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-parking" id="'+id+'^parking" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ab" id="'+id+'^ab" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cl" id="'+id+'^cl" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cool" id="'+id+'^cool" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-free" id="'+id+'^free" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-id" id="'+id+'^id" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-new" id="'+id+'^new" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ng" id="'+id+'^ng" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ok" id="'+id+'^ok" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sos" id="'+id+'^sos" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-up" id="'+id+'^up" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-vs" id="'+id+'^vs" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-koko" id="'+id+'^koko" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sa" id="'+id+'^sa" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u7121" id="'+id+'^u7121" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u6307" id="'+id+'^u6307" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u7981" id="'+id+'^u7981" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u7a7a" id="'+id+'^u7a7a" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u5408" id="'+id+'^u5408" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u6e80" id="'+id+'^u6e80" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u6709" id="'+id+'^u6709" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u6708" id="'+id+'^u6708" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u7533" id="'+id+'^u7533" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u5272" id="'+id+'^u5272" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-u55b6" id="'+id+'^u55b6" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ideograph_advantage" id="'+id+'^ideograph_advantage" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-accept" id="'+id+'^accept" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bookmark" id="'+id+'^bookmark" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-link" id="'+id+'^link" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-radio_button" id="'+id+'^radio_button" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-back" id="'+id+'^back" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-end" id="'+id+'^end" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-on" id="'+id+'^on" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-soon" id="'+id+'^soon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-top" id="'+id+'^top" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-underage" id="'+id+'^underage" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-keycap_ten" id="'+id+'^keycap_ten" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-capital_abcd" id="'+id+'^capital_abcd" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-abcd" id="'+id+'^abcd" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-1234" id="'+id+'^1234" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-symbols" id="'+id+'^symbols" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-abc" id="'+id+'^abc" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-black_square_button" id="'+id+'^black_square_button" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-white_square_button" id="'+id+'^white_square_button" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-red_circle" id="'+id+'^red_circle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-large_blue_circle" id="'+id+'^large_blue_circle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-large_orange_diamond" id="'+id+'^large_orange_diamond" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-large_blue_diamond" id="'+id+'^large_blue_diamond" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-small_orange_diamond" id="'+id+'^small_orange_diamond" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-small_blue_diamond" id="'+id+'^small_blue_diamond" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-small_red_triangle" id="'+id+'^small_red_triangle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-small_red_triangle_down" id="'+id+'^small_red_triangle_down" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_up_small" id="'+id+'^arrow_up_small" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrow_down_small" id="'+id+'^arrow_down_small" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock1" id="'+id+'^clock1" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock2" id="'+id+'^clock2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock3" id="'+id+'^clock3" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock4" id="'+id+'^clock4" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock5" id="'+id+'^clock5" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock6" id="'+id+'^clock6" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock7" id="'+id+'^clock7" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock8" id="'+id+'^clock8" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock9" id="'+id+'^clock9" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock10" id="'+id+'^clock10" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock11" id="'+id+'^clock11" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock12" id="'+id+'^clock12" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock130" id="'+id+'^clock130" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock230" id="'+id+'^clock230" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock330" id="'+id+'^clock330" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock430" id="'+id+'^clock430" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock530" id="'+id+'^clock530" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock630" id="'+id+'^clock630" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock730" id="'+id+'^clock730" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock830" id="'+id+'^clock830" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock930" id="'+id+'^clock930" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock1030" id="'+id+'^clock1030" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock1130" id="'+id+'^clock1130" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clock1230" id="'+id+'^clock1230" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hash" id="'+id+'^hash" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-zero" id="'+id+'^zero" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-one" id="'+id+'^one" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-two" id="'+id+'^two" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-three" id="'+id+'^three" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-four" id="'+id+'^four" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-five" id="'+id+'^five" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-six" id="'+id+'^six" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-seven" id="'+id+'^seven" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-eight" id="'+id+'^eight" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-nine" id="'+id+'^nine" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-ca" id="'+id+'^flag-ca" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-ch" id="'+id+'^flag-ch" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-cl" id="'+id+'^flag-cl" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-cn" id="'+id+'^flag-cn" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-co" id="'+id+'^flag-co" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-de" id="'+id+'^flag-de" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-dk" id="'+id+'^flag-dk" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-es" id="'+id+'^flag-es" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-fi" id="'+id+'^flag-fi" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-fr" id="'+id+'^flag-fr" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-gb" id="'+id+'^flag-db" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-id" id="'+id+'^flag-id" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-ie" id="'+id+'^flag-ie" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-il" id="'+id+'^flag-il" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-in" id="'+id+'^flag-in" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-it" id="'+id+'^flag-it" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-jp" id="'+id+'^flag-jp" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-kr" id="'+id+'^flag-kr" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-ru" id="'+id+'^flag-ru" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flag-us" id="'+id+'^flag-us" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div></section><section class="'+id+'-things hidden" id="'+id+'section" style="height: 180px;"><div class="emoji emoji-bangbang" id="'+id+'^bangbang" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-watch" id="'+id+'^watch" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hourglass" id="'+id+'^hourglass" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fast_forward" id="'+id+'^fast_forward" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rewind" id="'+id+'^rewind" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-alarm_clock" id="'+id+'^alarm_clock" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hourglass_flowing_sand" id="'+id+'^hourglass_flowing_sand" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sunny" id="'+id+'^sunny" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cloud" id="'+id+'^cloud" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-phone" id="'+id+'^phone" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ballot_box_with_check" id="'+id+'^ballot_box_with_check" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-umbrella" id="'+id+'^umbrella" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-coffee" id="'+id+'^coffee" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hotsprings" id="'+id+'^hotsprings" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wheelchair" id="'+id+'^wheelchair" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-anchor" id="'+id+'^anchor" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-warning" id="'+id+'^warning" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-zap" id="'+id+'^zap" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-soccer" id="'+id+'^soccer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-baseball" id="'+id+'^baseball" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-snowman" id="'+id+'^snowman" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-partly_sunny" id="'+id+'^partly_sunny" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-scissors" id="'+id+'^scissors" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-airplane" id="'+id+'^airplane" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-email" id="'+id+'^email" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pencil2" id="'+id+'^pencil2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-snowflake" id="'+id+'^snowflake" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sparkle" id="'+id+'^sparkle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-star" id="'+id+'^star" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cyclone" id="'+id+'^cyclone" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-foggy" id="'+id+'^foggy" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-closed_umbrella" id="'+id+'^closed_umbrella" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-night_with_stars" id="'+id+'^night_with_stars" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sunrise_over_mountains" id="'+id+'^sunrise_over_mountains" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sunrise" id="'+id+'^sunrise" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-city_sunset" id="'+id+'^city_sunset" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-city_sunrise" id="'+id+'^city_sunrise" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rainbow" id="'+id+'^rainbow" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bridge_at_night" id="'+id+'^bridge_at_night" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ocean" id="'+id+'^ocean" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-volcano" id="'+id+'^volcano" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-milky_way" id="'+id+'^milky_way" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-earth_africa" id="'+id+'^earth_africa" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-earth_americas" id="'+id+'^earth_americas" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-earth_asia" id="'+id+'^earth_asia" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-globe_with_meridians" id="'+id+'^globe_with_meridians" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-new_moon" id="'+id+'^new_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-waxing_crescent_moon" id="'+id+'^waxing_crescent_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-first_quarter_moon" id="'+id+'^first_quarter_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-moon" id="'+id+'^moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-full_moon" id="'+id+'^full_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-waning_gibbous_moon" id="'+id+'^waning_gibbous_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-last_quarter_moon" id="'+id+'^last_quarter_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-waning_crescent_moon" id="'+id+'^waning_crescent_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-crescent_moon" id="'+id+'^crescent_moon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-new_moon_with_face" id="'+id+'^new_moon_with_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-first_quarter_moon_with_face" id="'+id+'^first_quarter_moon_with_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-last_quarter_moon_with_face" id="'+id+'^last_quarter_moon_with_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-full_moon_with_face" id="'+id+'^full_moon_with_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sun_with_face" id="'+id+'^sun_with_face" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-star2" id="'+id+'^star2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-stars" id="'+id+'^stars" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-chestnut" id="'+id+'^chestnut" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-seedling" id="'+id+'^seedling" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-evergreen_tree" id="'+id+'^evergreen_tree" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-deciduous_tree" id="'+id+'^deciduous_tree" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-palm_tree" id="'+id+'^palm_tree" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cactus" id="'+id+'^cactus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tulip" id="'+id+'^tulip" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cherry_blossom" id="'+id+'^cherry_blossom" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rose" id="'+id+'^rose" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hibiscus" id="'+id+'^hibiscus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sunflower" id="'+id+'^sunflower" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-blossom" id="'+id+'^blossom" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-corn" id="'+id+'^corn" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ear_of_rice" id="'+id+'^ear_of_rice" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-herb" id="'+id+'^herb" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-four_leaf_clover" id="'+id+'^four_leaf_clover" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-maple_leaf" id="'+id+'^maple_leaf" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fallen_leaf" id="'+id+'^fallen_leaf" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-leaves" id="'+id+'^leaves" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ribbon" id="'+id+'^ribbon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-gift" id="'+id+'^gift" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-birthday" id="'+id+'^birthday" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-jack_o_lantern" id="'+id+'^jack_o_lantern" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-christmas_tree" id="'+id+'^christmas_tree" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-santa" id="'+id+'^santa" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fireworks" id="'+id+'^fireworks" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sparkler" id="'+id+'^sparkler" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-balloon" id="'+id+'^balloon" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tada" id="'+id+'^tada" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-confetti_ball" id="'+id+'^confetti_ball" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tanabata_tree" id="'+id+'^tanabata_tree" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-crossed_flags" id="'+id+'^crossed_flags" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bamboo" id="'+id+'^bamboo" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dolls" id="'+id+'^dolls" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flags" id="'+id+'^flags" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wind_chime" id="'+id+'^wind_chime" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rice_scene" id="'+id+'^rice_scene" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-school_satchel" id="'+id+'^school_satchel" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mortar_board" id="'+id+'^mortar_board" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-carousel_horse" id="'+id+'^carousel_horse" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ferris_wheel" id="'+id+'^ferris_wheel" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-roller_coaster" id="'+id+'^roller_coaster" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fishing_pole_and_fish" id="'+id+'^fishing_pole_and_fish" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-microphone" id="'+id+'^microphone" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-movie_camera" id="'+id+'^movie_camera" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cinema" id="'+id+'^cinema" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-headphones" id="'+id+'^headphones" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-art" id="'+id+'^art" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tophat" id="'+id+'^tophat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-circus_tent" id="'+id+'^circus_tent" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ticket" id="'+id+'^ticket" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clapper" id="'+id+'^clapper" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-performing_arts" id="'+id+'^performing_arts" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-video_game" id="'+id+'^video_game" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dart" id="'+id+'^dart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-slot_machine" id="'+id+'^slot_machine" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-8ball" id="'+id+'^8ball" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-game_die" id="'+id+'^game_die" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bowling" id="'+id+'^bowling" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flower_playing_cards" id="'+id+'^flower_playing_cards" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-musical_note" id="'+id+'^musical_note" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-notes" id="'+id+'^notes" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-saxophone" id="'+id+'^saxophone" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-guitar" id="'+id+'^guitar" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-musical_keyboard" id="'+id+'^musical_keyboard" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-trumpet" id="'+id+'^trumpet" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-violin" id="'+id+'^violin" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-musical_score" id="'+id+'^musical_score" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-running_shirt_with_sash" id="'+id+'^running_shirt_with_sash" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tennis" id="'+id+'^tennis" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ski" id="'+id+'^ski" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-basketball" id="'+id+'^basketball" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-checkered_flag" id="'+id+'^checkered_flag" onclick="putemoji(this)"style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-chart" id="'+id+'^chart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-seat" id="'+id+'^seat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-computer" id="'+id+'^computer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-briefcase" id="'+id+'^briefcase" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-minidisc" id="'+id+'^minidisc" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-floppy_disk" id="'+id+'^floppy_disk" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-cd" id="'+id+'^cd" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-dvd" id="'+id+'^dvd" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-file_folder" id="'+id+'^file_folder" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-open_file_folder" id="'+id+'^open_file_folder" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-page_with_curl" id="'+id+'^page_with_curl" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-page_facing_up" id="'+id+'^page_facing_up" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-date" id="'+id+'^date" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-calendar" id="'+id+'^calander" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-card_index" id="'+id+'^card_index" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-chart_with_upwards_trend" id="'+id+'^chart_with_downwards_trend" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-chart_with_downwards_trend" id="'+id+'^chart_with_downwards_trend" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bar_chart" id="'+id+'^bar_chart" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-clipboard" id="'+id+'^clipboard" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pushpin" id="'+id+'^pushpin" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-round_pushpin" id="'+id+'^round_pushpin" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-paperclip" id="'+id+'^paperclip" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-straight_ruler" id="'+id+'^straight_ruler" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-triangular_ruler" id="'+id+'^triangular_ruler" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bookmark_tabs" id="'+id+'^bookmark_tabs" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ledger" id="'+id+'^ledger" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-notebook" id="'+id+'^notebook" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-notebook_with_decorative_cover" id="'+id+'^notebook_with_decorative_cover" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-closed_book" id="'+id+'^closed_book" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-book" id="'+id+'^book" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-green_book" id="'+id+'^green_book" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-blue_book" id="'+id+'^blue_book" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-orange_book" id="'+id+'^orange_book" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-books" id="'+id+'^books" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-name_badge" id="'+id+'^name_badge" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-scroll" id="'+id+'^scroll" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-memo" id="'+id+'^memo" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-telephone_receiver" id="'+id+'^telephone_receiver" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-pager" id="'+id+'^paper" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fax" id="'+id+'^fax" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-satellite" id="'+id+'^satelite onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-loudspeaker" id="'+id+'^loudspeaker" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mega" id="'+id+'^mega" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-outbox_tray" id="'+id+'^outbox_tray" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-inbox_tray" id="'+id+'^inbox_tray" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-package" id="'+id+'^package" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-e-mail" id="'+id+'^e-mail" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-incoming_envelope" id="'+id+'^incoming_envelope" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-envelope_with_arrow" id="'+id+'^envelope_with_arrow" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mailbox_closed" id="'+id+'^mailbox_closed" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mailbox" id="'+id+'^mailbox" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mailbox_with_mail" id="'+id+'^mailbox_with_mail" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mailbox_with_no_mail" id="'+id+'^mailbox_with_no_mail" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-postbox" id="'+id+'^postbox" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-postal_horn" id="'+id+'^postal_horn" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-newspaper" id="'+id+'^newspaper" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-iphone" id="'+id+'^iphone" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-calling" id="'+id+'^calling" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-vibration_mode" id="'+id+'^vibration_mode" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mobile_phone_off" id="'+id+'^mobile_phone_off" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_mobile_phones" id="'+id+'^no_mobile_phones" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-signal_strength" id="'+id+'^signal_strength" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-camera" id="'+id+'^camera" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-video_camera" id="'+id+'^video_camera" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tv" id="'+id+'^tv" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-radio" id="'+id+'^radio" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-vhs" id="'+id+'^vhs" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-twisted_rightwards_arrows" id="'+id+'^twisted_rightwards_arrows" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-repeat" id="'+id+'^repeat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-repeat_one" id="'+id+'^repeat_one" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrows_clockwise" id="'+id+'^arrows_clockwise" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-arrows_counterclockwise" id="'+id+'^arrows_counterclockwise" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-low_brightness" id="'+id+'^low_brightness" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-high_brightness" id="'+id+'^high_brightness" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mute" id="'+id+'^mute" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-speaker" id="'+id+'^speaker" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-sound" id="'+id+'^sound" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-loud_sound" id="'+id+'^loud_sound" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-battery" id="'+id+'^battery" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-electric_plug" id="'+id+'^electric_plug" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mag" id="'+id+'^mug" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mag_right" id="'+id+'^mag_right" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-lock_with_ink_pen" id="'+id+'^lock_with_ink_pen" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-closed_lock_with_key" id="'+id+'^closed_lock_with_key" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-key" id="'+id+'^key" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-lock" id="'+id+'^lock" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-unlock" id="'+id+'^unlock" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bell" id="'+id+'^bell" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_bell" id="'+id+'^no_bell" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fire" id="'+id+'^fire" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-flashlight" id="'+id+'^flashlight" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wrench" id="'+id+'^wrench" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hammer" id="'+id+'^hammer" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-nut_and_bolt" id="'+id+'^nut_and_bolt" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hocho" id="'+id+'^hocho" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-gun" id="'+id+'^gun" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-microscope" id="'+id+'^microphone" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-telescope" id="'+id+'^telescope" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-crystal_ball" id="'+id+'^crystal_ball" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-six_pointed_star" id="'+id+'^six_pointed_star" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-beginner" id="'+id+'^beginner" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-trident" id="'+id+'^trident" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div></section><section class="'+id+'-travel hidden" id="'+id+'section" style="height: 180px;"><div class="emoji emoji-church" id="'+id+'^church" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fountain" id="'+id+'^fountain" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-golf" id="'+id+'^golf" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-boat" id="'+id+'^boat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tent" id="'+id+'^tent" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fuelpump" id="'+id+'^fuelpump" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-house" id="'+id+'^house" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-house_with_garden" id="'+id+'^house_with_garden" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-office" id="'+id+'^office" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-post_office" id="'+id+'^post_office" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-european_post_office" id="'+id+'^european_post_office" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hospital" id="'+id+'^hospital" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bank" id="'+id+'^bank" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-atm" id="'+id+'^atm" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-hotel" id="'+id+'^hotel" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-love_hotel" id="'+id+'^love_hotel" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-convenience_store" id="'+id+'^convenience_store" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-school" id="'+id+'^school" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-department_store" id="'+id+'^department_store" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-factory" id="'+id+'^factory" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-izakaya_lantern" id="'+id+'^izakaya_lantern" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-japanese_castle" id="'+id+'^japanese_castle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-european_castle" id="'+id+'^european_castle" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mount_fuji" id="'+id+'^mount_fuji" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tokyo_tower" id="'+id+'^tokyo_tower" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-statue_of_liberty" id="'+id+'^statue_of_liberty" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-japan" id="'+id+'^japan" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-moyai" id="'+id+'^moyai" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rocket" id="'+id+'^rocket" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-helicopter" id="'+id+'^helicopter" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-steam_locomotive" id="'+id+'^steam_locomotive" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-railway_car" id="'+id+'^railway_car" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bullettrain_side" id="'+id+'^bullettrain_side" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bullettrain_front" id="'+id+'^bullettrain_side" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-train2" id="'+id+'^train2" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-metro" id="'+id+'^metro" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-light_rail" id="'+id+'^light_rail" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-station" id="'+id+'^station" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tram" id="'+id+'^tram" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-train" id="'+id+'^train" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bus" id="'+id+'^bus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-oncoming_bus" id="'+id+'^oncoming_bus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-trolleybus" id="'+id+'^trolleybus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-busstop" id="'+id+'^busstop" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-minibus" id="'+id+'^minibus" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ambulance" id="'+id+'^ambulance" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-fire_engine" id="'+id+'^fire_engine" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-police_car" id="'+id+'^police_car" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-oncoming_police_car" id="'+id+'^oncoming_police_car" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-taxi" id="'+id+'^taxi" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-oncoming_taxi" id="'+id+'^oncoming_taxi" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-car" id="'+id+'^car" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-oncoming_automobile" id="'+id+'^oncoming_automobile" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-blue_car" id="'+id+'^blue_car" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-truck" id="'+id+'^truck" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-articulated_lorry" id="'+id+'^articulated_lorry" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-tractor" id="'+id+'^tractor" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-monorail" id="'+id+'^monorail" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mountain_railway" id="'+id+'^mountain_railway" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-suspension_railway" id="'+id+'^suspension_railway" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mountain_cableway" id="'+id+'^mountain_cableway" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-aerial_tramway" id="'+id+'^aerial_tramway" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-ship" id="'+id+'^ship" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rowboat" id="'+id+'^rowboat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-speedboat" id="'+id+'^speedboat" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-traffic_light" id="'+id+'^traffic_light" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-vertical_traffic_light" id="'+id+'^vertical_traffic_light" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-construction" id="'+id+'^construction" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-rotating_light" id="'+id+'^rotating_light" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-triangular_flag_on_post" id="'+id+'^triangular_flag_on_post" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-door" id="'+id+'^door" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_entry_sign" id="'+id+'^no_entry_sign" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-smoking" id="'+id+'^smoking" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_smoking" id="'+id+'^no_smoking" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-put_litter_in_its_place" id="'+id+'^put_litter_in_its_place" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-do_not_litter" id="'+id+'^do_not_litter" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-potable_water" id="'+id+'^potable_water" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-non-potable_water" id="'+id+'^non-potable_water" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bike" id="'+id+'^bike" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_bicycles" id="'+id+'^no_bicycles" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bicyclist" id="'+id+'^bicyclist" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mountain_bicyclist" id="'+id+'^mountain_bicyclist" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-walking" id="'+id+'^walking" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-no_pedestrians" id="'+id+'^no_pedestrians" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-children_crossing" id="'+id+'^children_crossing" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-mens" id="'+id+'^mens" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-womens" id="'+id+'^womens" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-restroom" id="'+id+'^restroom" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-baby_symbol" id="'+id+'^baby_symbol" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-toilet" id="'+id+'^toilet" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-wc" id="'+id+'^wc" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-shower" id="'+id+'^shower" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bath" id="'+id+'^bath" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-bathtub" id="'+id+'^bathtub" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-passport_control" id="'+id+'^passport_control" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-customs" id="'+id+'^customs" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-baggage_claim" id="'+id+'^baggage_claim" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div><div class="emoji emoji-left_luggage" id="'+id+'^left_luggage" onclick="putemoji(this)" style="width: 2.0em; height: 2.0em;"></div></section></div>',
+    
+    placement: "top"
+  });
+//})
+  }
+
+  
+
+
+  function changeTab(id,elem)
+  {
+    
+    $('.'+id+'-tab').removeClass('active');
+    $('[data-tab='+$(elem).attr('id')+']').addClass('active');
+
+
+
+    $('.'+id+'section >section').addClass('hidden');
+    $('.'+id+'section > .'+id+'-'+$(elem).attr('id')).removeClass('hidden');
+    $('.'+id+'section >section').removeClass('active');
+    $('.'+id+'section > .'+id+'-'+$(elem).attr('id')).addClass('active');
+
+  }
+
+function putemoji(elem)
+{
+    var data=$(elem).attr('id').split('^');
+   
+    var msg=$('#'+data[0]+'-msg').val();
+    msg+=' '+':'+data[1]+': ';
+
+    $('#'+data[0]+'-msg').val(msg);
+}
+
+   
+    var socket = io.connect('http://localhost:3000/');
+
+
+   
+
+
+    function typingFunction(id,socket_id)
+    {
+        socket.emit('typing','is typing...',socket_id,<%= users.user_id %>);
+    }
+
+
+    function get_previous_data(id,socketid)
+    {
+         
+       
+        var m='';
+        socket.emit('get_data',id,<%= users.user_id %>,socketid,function(alldata,pto,pfrom){
+
+            $.each(alldata,function(key,v){
+
+                if(v.chat_from==<%= users.user_id %>)
+                {
+                     crypt.setKey(pto);
+                    
+                    var bubble='chat_message_right';
+                    if(v.chat_read==0)
+                    {
+                         var read='<span class="chat_message_read" style=" color: #F96942;">&#x2714;</span>';
+                    }
+                    else
+                    {
+                        var read='<span class="chat_message_read" style=" color: #4277F9">&#x2714;</span>';
+                    }
+                   
+                }
+                else
+                {
+                    var bubble='';
+                    var read='';
+                     crypt.setKey(pfrom);
+                    
+                }
+
+               //socket.emit('get p key',id,function(pkey){
+                   //  var pkey=pkey;
+                   // });
+
+
+               
+       
+                     var data=crypt.decrypt(v.chat_body).split('^');
+                
+                var dt=moment(v.chat_at).format('MMM, Do YY, h:mm a');
+
+                if(data[1]=='nofile')
+                {
+
+                    m+='<div class="chat_message_wrapper '+bubble+' "><ul class="chat_message"><li><p>'+emojify.replace(data[0])+'<span class="chat_message_time">'+dt+'</span></p>'+read+'</li></ul></div>';
+
+
+                   // m+='<div class="'+bubble+' clearfix"><div class="chat-message-content clearfix"><span class="chat-time">'+dt+'</span><h5>'+v.from_name+'</h5><p>'+data[0]+'</p></div></div><hr>';
+               }
+               else
+               {
+                var ext=checkFile(data[1]);
+
+                 if(ext==='mp3' || ext==='mp4')
+                    {
+                
+                        var filee='<div class="player"><audio controls><source src="uploads/audio/'+data[1]+'" type="audio/mpeg"></audio></div>';
+                        var filee1='uploads/audio/'+data[1];
+                    }
+                    else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+                        {
+                            var filee='<img src="uploads/images/'+data[1]+'" />';
+                            var filee1='uploads/images/'+data[1];
+                        }
+
+                    m+='<div class="chat_message_wrapper '+bubble+' "><ul class="chat_message"><li><p>'+emojify.replace(data[0])+filee+'<span ><a href="'+filee1+'" download><i class="fa fa-download"></i></a></span><span class="chat_message_time">'+dt+'</span></p>'+read+'</li></ul></div>';
+                     // m+='<div class="'+bubble+' clearfix"><div class="chat-message-content clearfix"><span class="chat-time">'+dt+'</span><h5>'+v.from_name+'</h5><p>'+data[0]+'<img src="uploads/'+data[1]+'"></p></div></div><hr>';
+               }
+               
+
+
+            });
+
+             $('#'+id+'-chat-history').append(m);
+
+            var $cont = $('#'+id+'-chat-history');
+           $cont.animate({ scrollTop: $cont[0].scrollHeight }, "slow");
+
+
+
+
+        });
+    }
+
+//     
+
+   
+
+   
+
+    function submitForm(id)
+    {
+       $('.emoji-popup-'+id).popover('dispose');
+
+        var $cont = $('#'+id+'-chat-history');
+
+       
+        crypt.setKey(userp[id]);
+          
+        var fileEl = document.getElementById(id+'-file');
+      
+      
+        if(fileEl.value!='')
+        {
+             var ext=checkFile(fileEl.value);
+          
+             var uploader = new SocketIOFileClient(socket);
+             if(ext==='mp3' || ext==='mp4')
+             {
+                var uploadIds = uploader.upload(fileEl, {
+                    uploadTo: 'music'
+                });
+
+                var filee='<audio controls><source src="uploads/audio/" type="audio/mpeg"></audio>';
+             }
+             else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+             {
+                     var uploadIds = uploader.upload(fileEl, {
+                    uploadTo: 'image'
+                });
+             }
+
+             uploader.on('start', function(fileInfo) {
+            console.log('Start uploading', fileInfo);
+            });
+            uploader.on('stream', function(fileInfo) {
+           // console.log('Streaming... sent ' + fileInfo.sent + ' bytes.');
+            });
+            uploader.on('complete', function(fileInfo) {
+            console.log('Upload Complete', fileInfo);
+
+                 var socket_id=$('#'+id+'-socketid').val();
+                 var msg1=$('#'+id+'-msg').val();
+                var msg=$('#'+id+'-msg').val()+'^'+fileInfo.name;
+                var uname='<%= users.user_name %>';
+
+            if(ext==='mp3' || ext==='mp4')
+             {
+                
+                var filee='<div class="player"><audio controls><source src="uploads/audio/'+fileInfo.name+'" type="audio/mpeg"></audio></div>';
+             }
+             else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+             {
+                    var filee='<img src="uploads/images/'+fileInfo.name+'" />';
+             }
+
+
+
+                var m='<div class="chat_message_wrapper chat_message_right "><ul class="chat_message"><li><p>'+emojify.replace(msg1)+filee+'<span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span><span class="chat_message_read" id="'+id+'-chat_message_read" style=" color: #F96942;">&#x2714;</span></p></li></ul></div>';
+                $('#'+id+'-chat-history').append(m);
+
+                socket.emit('chat message',socket_id,<%= users.user_id %>,id,crypt.encrypt(msg),function(data){
+                    console.log(data);
+                });
+               // $('#'+id+'-msg').val('');
+                 $('#'+id+'-form')[0].reset();
+
+
+
+
+
+            });
+            uploader.on('error', function(err) {
+            console.log('Error!', err);
+            });
+            uploader.on('abort', function(fileInfo) {
+            console.log('Aborted: ', fileInfo);
+            });
+        }
+        else
+        {
+            
+            var socket_id=$('#'+id+'-socketid').val();
+            var msg1=$('#'+id+'-msg').val();
+                var msg=$('#'+id+'-msg').val()+'^'+'nofile';
+                var uname='<%= users.user_name %>';
+
+                var m='<div class="chat_message_wrapper chat_message_right "><ul class="chat_message"><li><p>'+emojify.replace(msg1)+'<span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span><span id="'+id+'-chat_message_read" class="chat_message_read" style=" color: #F96942;">&#x2714;</span></p></li></ul></div>';
+                $('#'+id+'-chat-history').append(m);
+
+                socket.emit('chat message',socket_id,<%= users.user_id %>,id,crypt.encrypt(msg),function(data){
+console.log(data);
+
+                });
+               // $('#'+id+'-msg').val('');
+                //$('#'+id+'-file').val('');
+                 $('#'+id+'-form')[0].reset();
+        }
+
+
+       
+
+ $cont.animate({ scrollTop: $cont[0].scrollHeight }, "slow");
+        return false;
+    }
+
+    socket.on('connect',function(){
+
+        socket.emit('check key',<%= users.user_id %>,function(res){
+
+            if(res=='nodata')
+            {
+                
+                privateKey = crypt.getPrivateKey();
+                publicKey = crypt.getPublicKey();
+
+                socket.emit('set key',<%= users.user_id %>,privateKey,publicKey,function(pubkey1){
+
+                    socket.emit('add user',<%= users.user_id %>,'<%= users.user_name %>');
+
+                })
+
+            }
+            else
+            {
+                publickey=res;
+                socket.emit('add user',<%= users.user_id %>,'<%= users.user_name %>');
+            }
+            
+
+        })
+
+     
+
+    });
+
+
+
+
+
+     // listener, whenever the server emits 'updatechat', this updates the chat body
+  socket.on('updatechat', function (username, data) {
+        
+  console.log(username+': '+data);
+    //$('#conversation').append('<b>'+username + ':</b> ' + data + '<br>');
+  });
+  // listener, whenever the server emits 'updateusers', this updates the username list
+  socket.on('updateusers', function(data) {
+   // $('#users').empty();
+
+   console.log(data);
+var html='';
+
+
+   var current_user='<%= users.user_id %>';
+   
+    $.each(data, function(key, value) {
+     // $('#users').append('<div>' + key + '</div>');
+    userpri[key]=value[3];
+     userp[key]=value[2];
+     
+     if(key!=current_user)
+     {
+    // console.log(value[1]);
+      html=html+'<div class="sidebar-name"><a href="javascript:register_popup('+key+', \''+value[1]+'\',\''+value[0]+'\');"><span>'+value[1]+'</span></a></div>';
+
+
+     }
+    
+    });
+     $('.chat-sidebar').html(html);
+
+socket.emit('get p key',current_user,function(key){
+    //console.log(key);
+     userpri[current_user]=key;
+});
+
+  });
+
+   
+    socket.on('chat recieve', function(id,uname,socketid,encmsg){
+
+
+       
+     
+       var $cont = $('#'+id+'-chat-history');
+        if(popups.indexOf(id)==-1)
+        {
+            register_popup(id, uname, socketid);
+        }
+        else
+        {
+      
+            crypt.setKey(userpri[<%= users.user_id %>]);
+            var data=crypt.decrypt(encmsg).split('^');
+
+            if(data[1]=='nofile')
+            {
+
+
+
+                var m='<div class="chat_message_wrapper"><ul class="chat_message"><li><p>'+emojify.replace(data[0])+'<span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span></p></li></ul></div>';
+                 $('#'+id+'-typing').html('');
+                $('#'+id+'-chat-history').append(m);
+            }
+            else
+            {
+                var ext=checkFile(data[1]);
+
+                if(ext==='mp3' || ext==='mp4')
+                    {
+                
+                        var filee='<div class="player"><audio controls><source src="uploads/audio/'+data[1]+'" type="audio/mpeg"></audio></div>';
+                    }
+                    else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+                        {
+                            var filee='<img src="uploads/images/'+data[1]+'" />';
+                        }
+                   var m='<div class="chat_message_wrapper chat_message "><ul class="chat_message"><li><p>'+emojify.replace(data[0])+filee+'<span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span></p></li></ul></div>';
+                    $('#'+id+'-typing').html('');
+                    $('#'+id+'-chat-history').append(m);
+            }
+             $cont.animate({ scrollTop: $cont[0].scrollHeight }, "slow");
+        }
+
+    socket.emit('data read',<%= users.user_id %>,id,socketid);
+
+
+  });
+    socket.on('read',function(data,to){
+       
+     
+        $('#'+to+'-chat_message_read').css("color", "#4277F9");
+    });
+
+    socket.on('recieve typing',function(msg,id){
+
+        $('#'+id+'-typing').html(msg);
+
+    });
+
+
+
+  /**************************FILE EXTENSION VALIDATION*******************************************/
+  function checkFile(file) {
+  var extension = file.substr((file.lastIndexOf('.') +1));
+  if (!/(pdf|zip|doc|mp3|mp4|jpg|jpeg|png|gif|JPG)$/ig.test(extension)) {
+    return false;
+  }
+  else
+  {
+    return extension;
+  }
+}  
+
+    
+  //});
+</script>
+</html>

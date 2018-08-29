@@ -1,0 +1,30 @@
+{
+  "name": "simple-chat-test",
+  "version": "1.0.0",
+  "description": "hands on node and socket",
+  "main": "server.js",
+  "scripts": {
+    "start": "nodemon server.js"
+  },
+  "author": "Siddhanta Das",
+  "license": "MIT",
+  "dependencies": {
+    "bcrypt": "^3.0.0",
+    "body-parser": "^1.18.3",
+    "connect-flash": "^0.1.1",
+    "cookie-parser": "^1.4.3",
+    "date-and-time": "^0.6.2",
+    "dotenv": "^6.0.0",
+    "ejs": "^2.6.1",
+    "emojify.js": "^1.1.0",
+    "express": "^4.16.3",
+    "express-mysql-session": "^2.0.0",
+    "express-session": "^1.15.6",
+    "mysql": "^2.16.0",
+    "nodemon": "^1.18.3",
+    "passport": "^0.4.0",
+    "passport-local": "^1.0.0",
+    "socket.io": "^2.1.1",
+    "socket.io-file": "^2.0.2"
+  }
+}
