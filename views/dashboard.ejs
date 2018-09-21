@@ -1,0 +1,802 @@
+<!doctype html>
+<html>
+    <head>
+        <title>One-To-One Chat Application</title>  
+           <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.4/socket.io.js"></script>
+        <script src="socket.io-file-client.js"></script>
+        
+         <link rel="stylesheet" href="css/chat.css"> 
+        
+
+            <link rel="stylesheet" type="text/css" href="emojipicker/css/jquery.emojipicker.css">  
+            
+            <link rel="stylesheet" type="text/css" href="emojipicker/css/jquery.emojipicker.tw.css">
+            
+
+  <!-- Emoji Data -->
+  
+         
+
+        
+          <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+         
+
+        <script>
+
+
+            //this function can remove a array element.
+            Array.remove = function(array, from, to) {
+                var rest = array.slice((to || from) + 1 || array.length);
+                array.length = from < 0 ? array.length + from : from;
+                return array.push.apply(array, rest);
+            };
+
+            //this variable represents the total number of popups can be displayed according to the viewport width
+            var total_popups = 0;
+            
+            //arrays of popups ids
+            var popups = [];
+
+           // var user_popups=[];
+        
+            //this is used to close a popup
+            function close_popup(id)
+            {
+                for(var iii = 0; iii < popups.length; iii++)
+                {
+                    if(id == popups[iii])
+                    {
+                        Array.remove(popups, iii);
+                        
+                        document.getElementById(id).remove();
+                        
+                        calculate_popups();
+                        
+                        return;
+                    }
+                } 
+
+              
+            }
+        
+            //displays the popups. Displays based on the maximum number of popups that can be displayed on the current viewport width
+            function display_popups()
+            {
+                var right = 220;
+                
+                var iii = 0;
+                for(iii; iii < total_popups; iii++)
+                {
+                    if(popups[iii] != undefined)
+                    {
+                        var element = document.getElementById(popups[iii]);
+                        element.style.right = right + "px";
+                        right = right + 340;
+                        element.style.display = "block";
+                    }
+                }
+                
+                for(var jjj = iii; jjj < popups.length; jjj++)
+                {
+                    var element = document.getElementById(popups[jjj]);
+                    element.style.display = "none";
+                }
+            }
+            
+            //creates markup for a new popup. Adds the id to popups array.
+            function register_popup(id, name,socket_id)
+            {
+                
+                for(var iii = 0; iii < popups.length; iii++)
+                {   
+                    //already registered. Bring it to front.
+                    if(id == popups[iii])
+                    {
+                        Array.remove(popups, iii);
+                    
+                        popups.unshift(id);
+                        
+                        calculate_popups();
+                        
+                        
+                        return;
+                    }
+                } 
+
+
+
+    // '<div class="modal fade" id="dialog_confirm_map" tabindex="-1" role="dialog" aria-labelledby="dialog_confirm_mapLabel" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-body"><p></p></div><div class="modal-footer"> <span style="float:left"><button type="button" class="btn btn-default" data-dismiss="modal">No, I </button></span><span style="float:right"></span></div></div></div></div>';
+
+              
+				
+				var element = '<div class="live-chat" id="'+ id +'"><header class="clearfix"><a href="javascript:close_popup(\''+ id +'\');" class="chat-close">x</a><h4>'+ name +'</h4><p id="'+id+'-typing"></p><span class="chat-message-counter">3</span>		</header><div class="chat"><div class="chat-history" id="'+id+'-chat-history"></div><div><p class="chat-feedback"></p><form id="'+id+'-form" onsubmit="return submitForm('+id+')" ><fieldset><input type="hidden" id="'+id+'-socketid" id="socketid" value="'+socket_id+'"> <div class="row"><div class="form-group col-xs-8"><div class="inner-addon left-addon"><i class="fa fa-smile-o emoji-popup-'+id+'" onclick="getEmoji('+id+');"></i><input class="form-control input-'+id+'" id="input-'+id+'" type="text" onkeypress="typingFunction('+id+',\''+socket_id+'\')" placeholder="Type your message…"  autofocus autocomplete="off"></div></div><div class="form-group col-xs-2"><div class="fileUpload btn btn-primary"><span><i class="fa fa-paperclip"></i></span><input type="file" id="'+id+'-file" class="upload '+id+'-file-upload" accept="image/*,audio/*,video/*" onchange="showFile(this);"  /></div></div><div class="form-group col-xs-2"><button class="form-post btn btn-defaiult btn-xs" ><i class="fa fa-paper-plane"></i></button></div></div></fieldset></form></div>';
+				
+				
+                
+//                var element = '<div class="popup-box chat-popup" id="'+ id +'">';
+//                element = element + '<div class="popup-head">';
+//                element = element + '<div class="popup-head-left">'+ name +'</div>';
+//                element = element + '<div class="popup-head-right"><a href="javascript:close_popup(\''+ id +'\');">&#10005;</a></div>';
+//                element = element + '<div style="clear: both"></div></div><div class="popup-messages"></div></div>';
+                
+                document.getElementsByTagName("body")[0].innerHTML = document.getElementsByTagName("body")[0].innerHTML + element;  
+        
+                popups.unshift(id);
+
+                get_previous_data(id,socket_id);
+                        
+                calculate_popups();
+                
+            }
+            
+            //calculate the total number of popups suitable and then populate the toatal_popups variable.
+            function calculate_popups()
+            {
+                var width = window.innerWidth;
+                if(width < 540)
+                {
+                    total_popups = 0;
+                }
+                else
+                {
+                    width = width - 200;
+                    //320 is width of a single popup box
+                    total_popups = parseInt(width/320);
+                }
+                
+                display_popups();
+                
+            }
+            
+            //recalculate when window is loaded and also when window is resized.
+            window.addEventListener("resize", calculate_popups);
+            window.addEventListener("load", calculate_popups);
+
+
+            
+        </script>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+      <a class="navbar-brand" href="#">One To One Chat Application</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarsExampleDefault">
+        <ul class="navbar-nav mr-auto">
+         
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="dropdown01" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><%= users.user_name %></a>
+            <div class="dropdown-menu" aria-labelledby="dropdown01">
+              <a class="dropdown-item" href="/logout">Logout</a>
+              
+            </div>
+          </li>
+        </ul>
+        
+      </div>
+    </nav>
+       <main role="main" class="container">
+        <h1>One To One Chat Application</h1>
+        <h4><%= message+' '+users.user_name %></h4>
+        <br>
+        <br>
+        <div style="width: 600px;">
+        <p>This Chat Application Is Free To Use For People Who Wants To Implement Chat Application To (One-to-One) Private Chat.The Chat Is Fully Encrypted With RSA Algorithm.Here You can Send image,audio,text,emoji at present .Updates Will Be Comming Frequently.This Application is Build With NODE JS ,Express js ,Socket.io.</p>
+    </div>
+    </main>   
+
+            
+
+            
+
+
+
+             
+
+       
+        <div class="chat-sidebar">
+          <div class="online-users">
+            <h3>Online Users</h3>
+            <div class="online-user-data">
+            </div>
+          </div>
+          <hr>
+          <div class="friends">
+            <h3>Online Friends</h3>
+            <div class="friends-data">
+            </div>
+          </div>
+            
+            
+        </div>
+        
+    </body>
+    
+  
+    
+     <script src="js/moment.js"></script>
+     <script src="js/jsencrypt.min.js"></script>
+     <script src="//cdnjs.cloudflare.com/ajax/libs/emojify.js/1.1.0/js/emojify.min.js"></script>
+     <script src="js/bootstrap-tooltip.js"></script>
+<scr<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+<script type="text/javascript" src="emojipicker/js/jquery.emojipickerr.js"></script>
+<script type="text/javascript" src="emojipicker/js/jquery.emojis.js"></script>
+
+
+
+
+
+     
+    
+  
+<script>
+
+  
+    //function generateKeypair () {
+        //$(":file").filestyle({input: false});
+        emojify.setConfig({tag_type : 'span',mode: 'sprites'});
+  var crypt = new JSEncrypt({default_key_size: 2056});
+  var privateKey ;
+  var publicKey ;
+  var userpri=[];
+  var userp=[];
+  const ranges = [
+  '[\u2700-\u27bf]',
+  '[\ud800-\udbff][\udc00-\udfff]',
+  '\ud83c\udd8e',
+  '\ud83c[\udd70-\udd71]',
+  '\ud83c[\udd91-\udd9a]',
+  '\ud83c[\udde6-\uddff]',
+  '[\ud83c[\ude01\uddff]',
+  '\ud83c[\ude01-\ude02]',
+  '\ud83c\ude1a',
+  '\ud83c\ude2f',
+  '[\ud83c[\ude32\ude02]',
+  '\ud83c\ude1a',
+  '\ud83c\ude2f',
+  '\ud83c[\ude32-\ude3a]',
+  '[\ud83c[\ude50\ude3a]',
+  '\ud83c[\ude50-\ude51]',
+  '\u203c',
+  '\u2049','[\u25aa-\u25ab]','\u25b6','\u25c0','[\u25fb-\u25fe]','\u00a9','\u00ae','\u2122','\u2139','\ud83c\udc04','[\u2600-\u26FF]','\u2b05','\u2b06','\u2b07','\u2b1b','\u2b1c','\u2b50','\u2b55','\u231a','\u231b','\u2328','\u23cf','[\u23e9-\u23f3]','[\u23f8-\u23fa]','\ud83c\udccf','\u2934','\u2935','[\u2190-\u21ff]',
+  '\ud83c[\udd7e-\udd7f]',
+  '\ud83c[\udf00-\udfff]', // U+1F300 to U+1F3FF
+  '\ud83d[\udc00-\ude4f]', // U+1F400 to U+1F64F
+  '\ud83d[\ude80-\udeff]', // U+1F680 to U+1F6FF
+  ' ', // Also allow spaces
+].join('|');
+
+console.log(ranges);
+
+
+
+
+  
+
+  function getEmoji(id)
+  {
+    //alert('hi');
+    
+    $('#input-'+id).emojiPicker({container: '#'+id+'-chat-history',position: 'left',emojiSet: 'google'});
+
+  
+  
+  }
+
+  function showFile(elem)
+  {
+    var id=$(elem).attr('id');
+    var container=$('#'+id).parent().prop('className').split(' ');
+    $('#'+id).popover('dispose');
+
+
+        
+     if (elem.files && elem.files[0]) {
+        console.log(elem.files[1]);
+            var reader = new FileReader();
+           
+
+            reader.onload = function (e) {
+
+                 var ext=checkFile(elem.files[0].name);
+                 //alert(elem.files[0].name);
+                 if(ext==='mp3' )
+                    {
+                
+                        var filee='<audio controls><source src="'+e.target.result+'" type="audio/mpeg"></audio>';
+                        
+                    }
+                    else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+                        {
+                            var filee='<img src="'+e.target.result+'" style="width: 200px; height: 220px"/><br><b>'+elem.files[0].name+'</b>';
+                           
+                        }
+                        else if(ext==='mp4')
+                        {
+                            var filee='<video  width="190" height="120"  controls><source src="'+e.target.result+'" ></video>';
+                        }
+
+
+ $('#'+id).popover({html:true,content: '<div class="popover-content">'+filee+'<br><button class="btn btn-danger" onclick="cancel_pop(\''+id+'\')">Cancel</button></div>',placement:'auto'});
+                $('#'+id).popover('show');
+                
+               
+               // $('#image_upload_preview').attr('src', e.target.result);
+            }
+
+            reader.readAsDataURL(elem.files[0]);
+        }
+  }
+
+  
+
+
+  function cancel_pop(id)
+  {
+    $('#'+id).popover('dispose');
+    $('#'+id).val('');
+  }
+
+
+   
+    var socket = io.connect('http://localhost:3000/');
+
+
+   
+
+
+    function typingFunction(id,socket_id)
+    {
+        socket.emit('typing','is typing...',socket_id,<%= users.user_id %>);
+    }
+
+
+    function get_previous_data(id,socketid)
+    {
+         
+       
+        var m='';
+        socket.emit('get_data',id,<%= users.user_id %>,socketid,function(alldata,pto,pfrom){
+
+            $.each(alldata,function(key,v){
+
+                if(v.chat_from==<%= users.user_id %>)
+                {
+                     crypt.setKey(pto);
+                    
+                    var bubble='chat_message_right';
+                    if(v.chat_read==0)
+                    {
+                         var read='<span class="chat_message_read" style=" color: #F96942;">&#x2714;</span>';
+                    }
+                    else
+                    {
+                        var read='<span class="chat_message_read" style=" color: #4277F9">&#x2714;</span>';
+                    }
+                   
+                }
+                else
+                {
+                    var bubble='';
+                    var read='';
+                     crypt.setKey(pfrom);
+                    
+                }
+
+               //socket.emit('get p key',id,function(pkey){
+                   //  var pkey=pkey;
+                   // });
+
+
+               
+       
+                     var data=crypt.decrypt(v.chat_body).split('^');
+                
+                var dt=moment(v.chat_at).format('MMM, Do YY, h:mm a');
+
+                var ft = checkEmoji(data[0]);
+
+                if(data[1]=='nofile')
+                {
+
+                    m+='<div class="chat_message_wrapper '+bubble+' "><ul class="chat_message"><li><p '+ft+'>'+data[0]+'</p><span class="chat_message_time">'+dt+'</span>'+read+'</li></ul></div>';
+
+
+                   // m+='<div class="'+bubble+' clearfix"><div class="chat-message-content clearfix"><span class="chat-time">'+dt+'</span><h5>'+v.from_name+'</h5><p>'+data[0]+'</p></div></div><hr>';
+               }
+               else
+               {
+                var ext=checkFile(data[1]);
+
+                 if(ext==='mp3')
+                    {
+                
+                        var filee='<div class="player"><audio controls><source src="uploads/audio/'+data[1]+'" type="audio/mpeg"></audio></div>';
+                        var filee1='uploads/audio/'+data[1];
+                    }
+                    else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+                        {
+                            var filee='<img src="uploads/images/'+data[1]+'" />';
+                            var filee1='uploads/images/'+data[1];
+                        }
+                        else if(ext==='mp4')
+                        {
+                            var filee='<video  width="190" height="120"  controls><source src="uploads/videos/'+data[1]+'" ></video>';
+                            var filee1='uploads/videos/'+data[1];
+                        }
+
+                    m+='<div class="chat_message_wrapper '+bubble+' "><ul class="chat_message"><li><p '+ft+'>'+data[0]+filee+'</p><span ><a href="'+filee1+'" download><i class="fa fa-download"></i></a></span><span class="chat_message_time">'+dt+'</span>'+read+'</li></ul></div>';
+                     // m+='<div class="'+bubble+' clearfix"><div class="chat-message-content clearfix"><span class="chat-time">'+dt+'</span><h5>'+v.from_name+'</h5><p>'+data[0]+'<img src="uploads/'+data[1]+'"></p></div></div><hr>';
+               }
+               
+
+
+            });
+
+             $('#'+id+'-chat-history').append(m);
+
+            var $cont = $('#'+id+'-chat-history');
+           $cont.animate({ scrollTop: $cont[0].scrollHeight }, "slow");
+
+
+
+
+        });
+    }
+
+//     
+
+   
+
+   
+
+    function submitForm(id)
+    {
+        $('.emoji-popup-'+id).popover('hide');
+        $('#'+id+'-file').popover('dispose');
+        
+        var $cont = $('#'+id+'-chat-history');
+
+       
+        crypt.setKey(userp[id]);
+          
+        var fileEl = document.getElementById(id+'-file');
+      
+      
+        if(fileEl.value!='')
+        {
+             var ext=checkFile(fileEl.value);
+          
+             var uploader = new SocketIOFileClient(socket);
+             if(ext==='mp3')
+             {
+                var uploadIds = uploader.upload(fileEl, {
+                    uploadTo: 'music'
+                });
+
+                var filee='<audio controls><source src="uploads/audio/" type="audio/mpeg"></audio>';
+             }
+             else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+             {
+                     var uploadIds = uploader.upload(fileEl, {
+                    uploadTo: 'image'
+                });
+             }
+             else if(ext==='mp4')
+             {
+                 var uploadIds = uploader.upload(fileEl, {
+                    uploadTo: 'video'
+                });
+             }
+
+             uploader.on('start', function(fileInfo) {
+            console.log('Start uploading', fileInfo);
+            });
+            uploader.on('stream', function(fileInfo) {
+           // console.log('Streaming... sent ' + fileInfo.sent + ' bytes.');
+            });
+            uploader.on('complete', function(fileInfo) {
+            console.log('Upload Complete', fileInfo);
+
+                 var socket_id=$('#'+id+'-socketid').val();
+                 var msg1=$('#input-'+id).val();
+                var msg=$('#input-'+id).val()+'^'+fileInfo.name;
+                var uname='<%= users.user_name %>';
+
+            if(ext==='mp3' )
+             {
+                
+                var filee='<div class="player"><audio controls><source src="uploads/audio/'+fileInfo.name+'" type="audio/mpeg"></audio></div>';
+                var filee1='uploads/audio/'+fileInfo.name;
+             }
+             else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+             {
+                    var filee='<img src="uploads/images/'+fileInfo.name+'" />';
+                    var filee1='uploads/images/'+fileInfo.name;
+             }
+             else if(ext==='mp4')
+                        {
+                            var filee='<video  width="190" height="120"  controls><source src="uploads/videos/'+fileInfo.name+'" ></video>';
+                            var filee1='uploads/videos/'+fileInfo.name;
+                        }
+              var ft = checkEmoji(msg1);
+                var m='<div class="chat_message_wrapper chat_message_right "><ul class="chat_message"><li><p '+ft+'>'+msg1+filee+'</p><span ><a href="'+filee1+'" download><i class="fa fa-download"></i></a></span><span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span><span class="chat_message_read" id="'+id+'-chat_message_read" style=" color: #F96942;">&#x2714;</span></li></ul></div>';
+                $('#'+id+'-chat-history').append(m);
+
+                socket.emit('chat message',socket_id,<%= users.user_id %>,id,crypt.encrypt(msg),function(data){
+                    console.log(data);
+                });
+               // $('#'+id+'-msg').val('');
+                 $('#'+id+'-form')[0].reset();
+
+
+
+
+
+            });
+            uploader.on('error', function(err) {
+           
+            });
+            uploader.on('abort', function(fileInfo) {
+            console.log('Aborted: ', fileInfo);
+            });
+        }
+        else
+        {
+            
+            var socket_id=$('#'+id+'-socketid').val();
+            var msg1=$('#input-'+id).val();       
+
+                var msg=$('#input-'+id).val()+'^'+'nofile';
+                var uname='<%= users.user_name %>';
+
+                var ft = checkEmoji(msg1);
+
+                var m='<div class="chat_message_wrapper chat_message_right "><ul class="chat_message"><li><p '+ft+'>'+msg1+'</p><span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span><span class="chat_message_read" id="'+id+'-chat_message_read" style=" color: #F96942;">&#x2714;</span></li></ul></div>';
+                $('#'+id+'-chat-history').append(m);
+
+                socket.emit('chat message',socket_id,<%= users.user_id %>,id,crypt.encrypt(msg),function(data){
+console.log(data);
+
+                });
+               // $('#'+id+'-msg').val('');
+                //$('#'+id+'-file').val('');
+                 $('#'+id+'-form')[0].reset();
+        }
+
+        
+
+
+
+
+
+       
+
+ $cont.animate({ scrollTop: $cont[0].scrollHeight }, "slow");
+        return false;
+    }
+
+    socket.on('connect',function(){
+
+        socket.emit('check key',<%= users.user_id %>,function(res){
+
+            if(res=='nodata')
+            {
+                
+                privateKey = crypt.getPrivateKey();
+                publicKey = crypt.getPublicKey();
+
+                socket.emit('set key',<%= users.user_id %>,privateKey,publicKey,function(pubkey1){
+
+                    socket.emit('add user',<%= users.user_id %>,'<%= users.user_name %>');
+
+                })
+
+            }
+            else
+            {
+                publickey=res;
+                socket.emit('add user',<%= users.user_id %>,'<%= users.user_name %>');
+            }
+            
+
+        })
+
+     
+
+    });
+
+
+
+
+
+     // listener, whenever the server emits 'updatechat', this updates the chat body
+  socket.on('updatechat', function (username, data) {
+        
+  console.log(username+': '+data);
+    //$('#conversation').append('<b>'+username + ':</b> ' + data + '<br>');
+  });
+  // listener, whenever the server emits 'updateusers', this updates the username list
+  socket.on('updateusers', function(data) {
+   // $('#users').empty();
+
+  
+   
+var html='';
+var html1='';
+
+
+   var current_user=parseInt('<%= users.user_id %>');
+   console.log("current_user"+current_user);
+     
+
+    $.each(data, function(key, value) {
+  
+     userp[key]=value[2];
+     
+     if(key!=current_user)
+     {
+      
+      if(data[key][3].indexOf(current_user)>=0)
+      {
+       
+    // console.log(value[1]);<a href="javascript:register_popup('+key+', \''+value[1]+'\',\''+value[0]+'\');">
+        html=html+'<div class="sidebar-name"><span><a href="javascript:register_popup('+key+', \''+data[key][1]+'\',\''+data[key][0]+'\');">'+data[key][1]+'</a></span></div>';
+      
+      }
+      else
+      {
+        console.log('hello');
+        html1=html1+'<div class="sidebar-name"><span>'+value[1]+'</span><button class="btn btn-sm" onclick="addfriend(\''+key+'\',\''+value[0]+'\')">Add Friend</button></div>';
+      }
+
+
+     }
+    
+    });
+     $('.online-user-data').html(html1);
+      $('.friends-data').html(html);
+
+socket.emit('get p key',current_user,function(key){
+    //console.log(key);
+     userpri[current_user]=key;
+});
+
+  });
+
+   
+    socket.on('chat recieve', function(id,uname,socketid,encmsg){
+
+
+       
+     
+       var $cont = $('#'+id+'-chat-history');
+        if(popups.indexOf(id)==-1)
+        {
+            register_popup(id, uname, socketid);
+        }
+        else
+        {
+      
+            crypt.setKey(userpri[<%= users.user_id %>]);
+            var data=crypt.decrypt(encmsg).split('^');
+
+            var ft = checkEmoji(data[0]);
+
+            if(data[1]=='nofile')
+            {
+
+
+
+                var m='<div class="chat_message_wrapper"><ul class="chat_message"><li><p '+ft+'>'+data[0]+'</p><span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span></li></ul></div>';
+                 $('#'+id+'-typing').html('');
+                $('#'+id+'-chat-history').append(m);
+            }
+            else
+            {
+                var ext=checkFile(data[1]);
+
+                if(ext==='mp3')
+                    {
+                
+                        var filee='<div class="player"><audio controls><source src="uploads/audio/'+data[1]+'" type="audio/mpeg"></audio></div>';
+                         var filee1='uploads/audio/'+data[1];
+                    }
+                    else if(ext==='jpg' || ext==='jpeg' || ext==='png' || ext==='gif' || ext==='jpeg' || ext==='JPG')
+                        {
+                            var filee='<img src="uploads/images/'+data[1]+'" />';
+                             var filee1='uploads/images/'+data[1];
+                        }
+                        else if(ext==='mp4')
+                        {
+                            var filee='<video  width="190" height="120"  controls><source src="uploads/videos/'+data[1]+'" ></video>';
+                            var filee1='uploads/videos/'+data[1];
+                        }
+                        var ft = checkEmoji(data[0]);
+                   var m='<div class="chat_message_wrapper chat_message "><ul class="chat_message"><li><p '+ft+'>'+data[0]+filee+'</p><span ><a href="'+filee1+'" download><i class="fa fa-download"></i></a></span><span class="chat_message_time">'+moment().format("MMM Do YY, h:mm a")+'</span></li></ul></div>';
+                    $('#'+id+'-typing').html('');
+                    $('#'+id+'-chat-history').append(m);
+            }
+             $cont.animate({ scrollTop: $cont[0].scrollHeight }, "slow");
+        }
+
+    socket.emit('data read',<%= users.user_id %>,id,socketid);
+
+
+  });
+    socket.on('read',function(data,to){
+       
+     
+        $('#'+to+'-chat_message_read').css("color", "#4277F9");
+    });
+
+    socket.on('recieve typing',function(msg,id){
+
+        $('#'+id+'-typing').html(msg);
+
+    });
+
+    socket.on('friend request rec',function(username,id,friend){
+        if(confirm(username+" wants to be a friend of you??"))
+        {
+            socket.emit('friend request acc',id,friend);
+        }
+    })
+
+
+
+  /**************************FILE EXTENSION VALIDATION*******************************************/
+  function checkFile(file) {
+  var extension = file.substr((file.lastIndexOf('.') +1));
+  if (!/(pdf|zip|doc|mp3|mp4|jpg|jpeg|png|gif|JPG)$/ig.test(extension)) {
+    return false;
+  }
+  else
+  {
+    return extension;
+  }
+} 
+
+function checkEmoji(str)
+{
+      if(str.match(new RegExp(ranges, 'g'), '')){
+
+                    var remlen=str.replace(new RegExp(ranges, 'g'), '').length;
+                    var totallen=str.length;
+
+                        if(remlen=='0' && (totallen>remlen || totallen==remlen))
+                        {
+                                var ft='style="font-size: 25px;"';
+                        }
+                        else
+                        {
+                            var ft='';
+                        }
+                   
+                    }
+                    else
+                    {
+                        var ft='';
+
+                    }
+        return ft;
+
+} 
+
+
+function addfriend(id,sock)
+{
+    socket.emit('friend request',<%= users.user_id %>,id,sock);
+}
+
+    
+  //});
+</script>
+</html>
