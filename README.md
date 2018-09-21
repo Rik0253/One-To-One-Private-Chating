@@ -1,0 +1,2 @@
+************--------ONE TO ONE PRIVATE CHATTING------------***********
+It is fully encripted end-to-end chatting (RSA ALgorithm). This Chat Application Is Free To Use For People Who Wants To Implement Chat Application To (One-to-One) Private Chat.Here You can Send image,audio,text,emoji at present .You Can Send Friend Request Also.Updates Will Be Comming Frequently.This Application is Build With NODE JS ,Express js ,Socket.io.
